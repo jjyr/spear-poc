@@ -27,8 +27,14 @@ def main():
     # 3. Randomly choose parts and forward to payee
     # Select a random subset of the locked parts to simulate network forwarding
     selected_parts = random.sample(locked_parts, parts_count)  # Ensure we have enough parts
-    payee.receive_parts(selected_parts)
-    print(f"Forwarded {len(selected_parts)} parts to payee")
+    for p in selected_parts:
+        payee.receive_parts([p])
+        print(f"Forwarded payment part to payee")
+        if payee.get_received_parts(payment_hash):
+            print(f"Payee received enough parts")
+            break
+        else:
+            print(f"Waiting for next part")
     
     # 4. Check if payee has enough parts
     received_parts = payee.get_received_parts(payment_hash)

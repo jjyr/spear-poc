@@ -1,3 +1,9 @@
+import hashlib
+import random
+
+def random_bytes():
+    return random.randbytes(4)
+
 class LockedPart:
     def __init__(self, amount, payment_hash, payer_hash):
         self.amount = amount
@@ -5,7 +11,7 @@ class LockedPart:
         self.payer_hash = payer_hash
     
     def verify(self, preimage, payer_preimage):
-        return self.payment_hash == hashlib.sha256(preimage.encode()).hexdigest() and self.payer_hash == hashlib.sha256(payer_preimage.encode()).hexdigest()
+        return self.payment_hash == hashlib.sha256(preimage).hexdigest() and self.payer_hash == hashlib.sha256(payer_preimage).hexdigest()
 
 class Part:
     def __init__(self, amount, payer_preimage):
@@ -13,7 +19,7 @@ class Part:
         self.payer_preimage = payer_preimage
 
     def payer_hash(self):
-        return hashlib.sha256(self.payer_preimage.encode()).hexdigest()
+        return hashlib.sha256(self.payer_preimage).hexdigest()
 
 class Payment:
     def __init__(self, payment_hash, amount, parts_count, redundant_parts_count):
@@ -30,7 +36,7 @@ class Payment:
         for i in range(parts_count + redundant_parts_count):
             # payment hash is fixed (just like a normal HTLC)
             # payer preimage is random for each part
-            payer_preimage = uuid.uuid4()
+            payer_preimage = random_bytes()
             part = Part(self.amount_per_part, payer_preimage)
             payer_hash = part.payer_hash()
             locked_part = LockedPart(self.amount_per_part, self.payment_hash, payer_hash)
@@ -39,9 +45,9 @@ class Payment:
 
 class Invoice:
     def __init__(self, amount):
-        self.preimage = uuid.uuid4()
+        self.preimage = random_bytes()
         self.amount = amount
-        self.payment_hash = hashlib.sha256(self.preimage.encode()).hexdigest()
+        self.payment_hash = hashlib.sha256(self.preimage).hexdigest()
 
 class Node:
     def __init__(self):
@@ -140,10 +146,21 @@ class Node:
         invoice = self.find_invoice(payment_hash)
         if invoice is None:
             return None
-        parts = [p for p in self.received_parts if p.payment_hash == payment_hash]
-        if len(parts) < invoice.parts_count:
+        parts = []
+        total_amount = 0
+        for part in self.received_parts:
+            if part.payment_hash == payment_hash:
+                parts.append(part)
+                total_amount += part.amount
+            if total_amount == invoice.amount:
+                break
+            # assume parts amount is fixed
+            if total_amount > invoice.amount:
+                raise Exception("Invalid payment amount")
+        # check if enough parts
+        if total_amount < invoice.amount:
             return None
-        return parts[:invoice.parts_count]
+        return parts
 
     def claim(self, locked_parts, payer_preimages):
         payment_hash = locked_parts[0].payment_hash
@@ -160,6 +177,7 @@ class Node:
             raise Exception("Invalid preimages count")
         # check preimages
         for index, part in enumerate(locked_parts):
+            print(f"Verify part {index} payment_hash: {part.payment_hash}  payer_hash: {part.payer_hash}")
             if not part.verify(preimage, payer_preimages[index]):
                 raise Exception("Invalid preimage")
 
