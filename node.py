@@ -2,7 +2,7 @@ import hashlib
 import random
 
 def random_bytes():
-    return random.randbytes(4)
+    return random.randbytes(32)
 
 class LockedPart:
     def __init__(self, amount, payment_hash, payer_hash):
@@ -183,3 +183,9 @@ class Node:
 
         # Claim payment
         print("Claim payment")
+
+    def get_preimage(self, payment_hash):
+        for invoice in self.invoices:
+            if invoice.payment_hash == payment_hash:
+                return invoice.preimage
+        return None

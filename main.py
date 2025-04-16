@@ -49,6 +49,12 @@ def main():
         # 6. Payee verifies these revealed preimages via claim function
         payee.claim(received_parts, payer_preimages)
         print("Payment successfully claimed by payee")
+
+        # 7. Once Payee claim the payment, payer can use payer_preimage as payment proof
+        # (The actually process of claiming payment via HHTLC is not included in this example)
+        preimage = payee.get_preimage(payment_hash)
+        # output hex string
+        print(f"Payer payment proof(preimage): 0x{preimage.hex()}")
     else:
         print("Payee didn't receive enough parts to claim payment")
 
