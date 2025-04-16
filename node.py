@@ -107,8 +107,8 @@ class Node:
             
         # check total amount of parts
         total_amount = sum([part.amount for part in locked_parts])
-        if total_amount > payment.amount:
-            raise Exception("Invalid payment amount")
+        if total_amount != payment.amount:
+            raise Exception(f"Reject to reveal parts because of invalid amount {total_amount} != {payment.amount}")
 
         # find payer preimages for each part
         payer_preimages = []
