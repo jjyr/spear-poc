@@ -4,7 +4,7 @@ import random
 def random_bytes():
     return random.randbytes(32)
 
-class LockedPart:
+class PaymentPart:
     def __init__(self, amount, payment_hash, payer_hash):
         self.amount = amount
         self.payment_hash = payment_hash
@@ -39,7 +39,7 @@ class Payment:
             payer_preimage = random_bytes()
             part = Part(self.amount_per_part, payer_preimage)
             payer_hash = part.payer_hash()
-            locked_part = LockedPart(self.amount_per_part, self.payment_hash, payer_hash)
+            locked_part = PaymentPart(self.amount_per_part, self.payment_hash, payer_hash)
             self.parts.append(part)
             self.locked_parts.append(locked_part)
 
