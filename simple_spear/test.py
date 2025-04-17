@@ -1,10 +1,10 @@
 import hashlib
 import uuid
 import random
-from spear.node import Node
+from simple_spear.node import Node
 
 def run_test():
-    print("Running spear protocol test...")
+    print("Running simple spear protocol test...")
     
     # 0. Setup two nodes: payer and payee
     payer = Node()
@@ -30,14 +30,14 @@ def run_test():
     for htlc in selected_htlcs:
         payee.receive_htlcs([htlc])
         print(f"Forwarded payment part to payee")
-        if payee.get_received_htlcs(payment_hash):
+        if payee.get_received_htlcs(payment_hash, htlc.set_id):
             print(f"Payee received enough parts")
             break
         else:
             print(f"Waiting for next part")
     
     # 4. Check if payee has enough parts
-    received_htlcs = payee.get_received_htlcs(payment_hash)
+    received_htlcs = payee.get_received_htlcs(payment_hash, htlcs[0].set_id)
     if received_htlcs:
         print(f"Payee received enough parts: {len(received_htlcs)}")
         
@@ -49,12 +49,6 @@ def run_test():
         # 6. Payee verifies these revealed preimages via claim function
         payee.claim(received_htlcs, payer_preimages)
         print("Payment successfully claimed by payee")
-
-        # 7. Once Payee claim the payment, payer can use payer_preimage as payment proof
-        # (The actually process of claiming payment via HHTLC is not included in this example)
-        preimage = payee.get_preimage(payment_hash)
-        # output hex string
-        print(f"Payer payment proof(preimage): 0x{preimage.hex()}")
     else:
         print("Payee didn't receive enough parts to claim payment")
 
