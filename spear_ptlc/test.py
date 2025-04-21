@@ -42,22 +42,22 @@ def run_test():
 
     print(f"Payee received enough parts: {len(received_ptlcs)}")
         
-    # 5. Ask payer to reveal these ptlc's nonce secrets
-    # payer should ensure that amount of revealed nonces is equal to invoice amount
-    payer_nonces = payer.reveal_ptlcs(received_ptlcs)
-    print(f"Payer revealed {len(payer_nonces)} nonces")
+    # 5. Ask payer to reveal these ptlc's hop secrets sum
+    # payer should ensure that amount of revealed secrets is equal to invoice amount
+    payer_secrets = payer.reveal_ptlcs(received_ptlcs)
+    print(f"Payer revealed {len(payer_secrets)} secrets")
     
-    # 6. Payee verifies these revealed nonces via claim function
-    claimed_secrets = payee.claim(received_ptlcs, payer_nonces)
+    # 6. Payee verifies these revealed secrets via claim function
+    claim_secrets = payee.claim(received_ptlcs, payer_secrets)
     print("Payment successfully claimed by payee")
 
     # 7. Payer can extract payment proof from claim
     payment = payer.find_payment(payment_hash)
     payment_proof = None
-    for index, claimed_secret in enumerate(claimed_secrets):
+    for index, claim_secret in enumerate(claim_secrets):
         ptlc = received_ptlcs[index]
-        payer_nonce_secret = payment.nonce_secrets[ptlc.id]
-        secret = claimed_secret - payer_nonce_secret
+        payer_hop_secret = payment.hop_secrets[ptlc.id]
+        secret = claim_secret - payer_hop_secret
         if payment_proof is None:
             payment_proof = secret
         if payment_proof != secret:

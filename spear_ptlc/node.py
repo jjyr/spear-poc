@@ -6,14 +6,14 @@ def random_bytes():
     return random.randbytes(32)
 
 class PTLC:
-    def __init__(self, id, amount, payment_hash, pubkey):
+    def __init__(self, id, amount, payment_hash, point):
         self.id = id
         self.amount = amount
-        self.pubkey = pubkey
+        self.point = point
         self.payment_hash = payment_hash
 
     def verify(self, secret):
-        return secp256k1.G * secret == self.pubkey
+        return secp256k1.G * secret == self.point
 
 class SecretKey:
     def __init__(self, k=None):
@@ -30,24 +30,24 @@ class PublicKey:
         return hashlib.sha256(self.pubkey.x.x.to_bytes(32, 'little') + self.pubkey.y.x.to_bytes(32, 'little')).hexdigest()
     
 class Payment:
-    def __init__(self, pubkey, amount, parts_count, redundant_parts_count):
-        self.pubkey = pubkey
-        self.payment_hash = pubkey.compute_hash()
+    def __init__(self, point, amount, parts_count, redundant_parts_count):
+        self.pubkey = point
+        self.payment_hash = point.compute_hash()
         self.amount = amount
         self.amount_per_part = amount / parts_count
         self.locked_amount = amount + self.amount_per_part * redundant_parts_count
         self.parts_count = parts_count
         self.redundant_parts_count = redundant_parts_count
         self.ptlcs = []
-        self.nonce_secrets = []
+        self.hop_secrets = []
 
         # generate HHTLC hashes for each part
         for i in range(parts_count + redundant_parts_count):
-            # generate random nonce for each hop (for simplicity we has 0 hops)
-            nonce_secret = secp256k1.Fr(random.randint(0, secp256k1.N))
-            pubkey = self.pubkey.pubkey + secp256k1.G * nonce_secret
-            self.ptlcs.append(PTLC(i, self.amount_per_part, self.payment_hash, pubkey))
-            self.nonce_secrets.append(nonce_secret)
+            # generate random secret for each hop (for simplicity we has 0 hops)
+            hop_secret = secp256k1.Fr(random.randint(0, secp256k1.N))
+            point = self.pubkey.pubkey + secp256k1.G * hop_secret
+            self.ptlcs.append(PTLC(i, self.amount_per_part, self.payment_hash, point))
+            self.hop_secrets.append(hop_secret)
 
 class Invoice:
     def __init__(self, amount):
@@ -117,21 +117,21 @@ class Node:
         if total_amount != payment.amount:
             raise Exception(f"Reject to reveal ptlcs because of invalid amount {total_amount} != {payment.amount}")
 
-        # find nonce for each part
-        nonces = []
+        # find secrets for each part
+        secrets = []
         for ptlc in ptlcs:
             payment_hash = ptlc.payment_hash
-            nonce_secret = payment.nonce_secrets[ptlc.id]
-            if nonce_secret is None:
-                raise Exception("Payer nonce secret not found")
-            # nonce is sum of all hops secret value
-            # for simplicity we has 0 hops so nonce is just one secret value
-            nonces.append(nonce_secret)
+            hop_secret = payment.hop_secrets[ptlc.id]
+            if hop_secret is None:
+                raise Exception("Payer hop secret not found")
+            # hop secret is sum of all hops secret value
+            # for simplicity we has 0 hops so hop secret is just one secret value
+            secrets.append(hop_secret)
         
-        # check nonces count
-        if len(nonces) != len(ptlcs):
-            raise Exception("Invalid nonces count")
-        return nonces
+        # check secrets count
+        if len(secrets) != len(ptlcs):
+            raise Exception("Invalid secrets count")
+        return secrets
 
     # payee receive locked parts
     def receive_ptlcs(self, ptlcs):
@@ -174,23 +174,23 @@ class Node:
             return None
         return ptlcs
 
-    def claim(self, ptlcs, nonces):
-        # check nonces count
-        if len(nonces) != len(ptlcs):
-            raise Exception("Invalid nonces count")
+    def claim(self, ptlcs, secrets):
+        # check secrets count
+        if len(secrets) != len(ptlcs):
+            raise Exception("Invalid secrets count")
         # find invoice
         invoice = self.find_invoice(ptlcs[0].payment_hash)
         if invoice is None:
             raise Exception("Invoice not found")
-        # check nonces
-        secrets = []
+        # check secrets
+        claim_secrets = []
         for index, ptlc in enumerate(ptlcs):
             print(f"Verify part {ptlc.id} payment_hash: {ptlc.payment_hash}")
-            secret = invoice.secret_key.k + nonces[index]
+            secret = invoice.secret_key.k + secrets[index]
             if not ptlc.verify(secret):
-                raise Exception("Invalid secret / nonce")
-            secrets.append(secret)
+                raise Exception("Invalid secret key / hop secret")
+            claim_secrets.append(secret)
 
         # Claim payment
         print("Claim payment")
-        return secrets
+        return claim_secrets
