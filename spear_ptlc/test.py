@@ -22,8 +22,8 @@ def run_test():
     ptlcs = payer.pay(pubkey, amount, parts_count, redundant_parts_count)
     print(f"Payer created payment with {parts_count} parts and {redundant_parts_count} redundant parts")
     
-    # 3. Randomly choose parts and forward to payee
-    # Select a random subset of the locked parts to simulate network forwarding
+    # 3. Randomly choose parts from payer and forward to payee
+    # Select a random subset of the ptlc part to simulate network forwarding
     selected_ptlcs = random.sample(ptlcs, parts_count)  # Ensure we have enough parts
     for ptlc in selected_ptlcs:
         payee.receive_ptlcs([ptlc])
@@ -36,42 +36,44 @@ def run_test():
     
     # 4. Check if payee has enough parts
     received_ptlcs = payee.get_received_ptlcs(payment_hash)
-    if received_ptlcs:
-        print(f"Payee received enough parts: {len(received_ptlcs)}")
-        
-        # 5. Ask payer to reveal these parts' preimages
-        # First, index the parts for identification
-        payer_nonces = payer.reveal_ptlcs(received_ptlcs)
-        print(f"Payer revealed {len(payer_nonces)} nonces")
-        
-        # 6. Payee verifies these revealed preimages via claim function
-        claimed_secrets = payee.claim(received_ptlcs, payer_nonces)
-        print("Payment successfully claimed by payee")
+    if not received_ptlcs:
+        print(f"Payee didn't receive enough parts")
+        return
 
-        # 7. Payer can extract payment proof from claim
-        payment = payer.find_payment(payment_hash)
-        payment_proof = None
-        for index, claimed_secret in enumerate(claimed_secrets):
-            ptlc = received_ptlcs[index]
-            payer_nonce_secret = payment.nonce_secrets[ptlc.id]
-            secret = claimed_secret - payer_nonce_secret
-            if payment_proof is None:
-                payment_proof = secret
-            if payment_proof != secret:
-                raise Exception("Payment proof is not consistent")
-                
-        print(f"Payment proof: {payment_proof}")
-        # 8. Any one with invoice pubkey can verify payment proof
-        invoice = payee.find_invoice(payment_hash)
-        pubkey = SecretKey(payment_proof).pubkey()
-        print(f"Payment proof pubkey: {pubkey.pubkey}")
-        print(f"Invoice pubkey: {invoice.pubkey.pubkey}")
-        if pubkey.pubkey == invoice.pubkey.pubkey:
-            print("Payment proof is verified")
-        else:
-            raise Exception("Payment proof is not verified")
+    print(f"Payee received enough parts: {len(received_ptlcs)}")
+        
+    # 5. Ask payer to reveal these ptlc's nonce secrets
+    # payer should ensure that amount of revealed nonces is equal to invoice amount
+    payer_nonces = payer.reveal_ptlcs(received_ptlcs)
+    print(f"Payer revealed {len(payer_nonces)} nonces")
+    
+    # 6. Payee verifies these revealed nonces via claim function
+    claimed_secrets = payee.claim(received_ptlcs, payer_nonces)
+    print("Payment successfully claimed by payee")
+
+    # 7. Payer can extract payment proof from claim
+    payment = payer.find_payment(payment_hash)
+    payment_proof = None
+    for index, claimed_secret in enumerate(claimed_secrets):
+        ptlc = received_ptlcs[index]
+        payer_nonce_secret = payment.nonce_secrets[ptlc.id]
+        secret = claimed_secret - payer_nonce_secret
+        if payment_proof is None:
+            payment_proof = secret
+        if payment_proof != secret:
+            raise Exception("Payment proof is not consistent")
+            
+    print(f"Payment proof: {payment_proof}")
+
+    # 8. Anyone with invoice pubkey can verify payment proof
+    invoice = payee.find_invoice(payment_hash)
+    pubkey = SecretKey(payment_proof).pubkey()
+    print(f"Payment proof pubkey: {pubkey.pubkey}")
+    print(f"Invoice pubkey: {invoice.pubkey.pubkey}")
+    if pubkey.pubkey == invoice.pubkey.pubkey:
+        print("Payment proof is verified")
     else:
-        print("Payee didn't receive enough parts to claim payment")
+        raise Exception("Payment proof is not verified")
 
 if __name__ == "__main__":
     run_test() 
